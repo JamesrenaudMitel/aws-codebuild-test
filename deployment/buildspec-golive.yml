@@ -1,0 +1,46 @@
+version: 0.2
+
+env:
+  variables:
+    deployRoleArn: "arn:aws:iam::611394351971:role/Deployer"
+    deployEURoleArn: "arn:aws:iam::757559726037:role/Deployer"
+    deployAUSRoleArn: "arn:aws:iam::174257105304:role/Deployer"
+    paramRoleArn: "arn:aws:iam::083255287042:role/platform-api-param-access"
+    cloudType: "public"
+phases:
+  install:
+    commands:
+      - apt-get update
+      - npm install npm@latest -g
+      - echo Running NPM setup
+      - cd deployment/setup-npm
+      - npm install
+      - npm run setup-npm -- --role-arn $paramRoleArn --region $AWS_REGION
+      - cd ../..
+  pre_build:
+    commands:
+      - echo Installing packages for deployment
+      - cd deployment
+      - npm install
+      - npm i @mitel-internal/cloudlink-deployment@latest
+      - cd ..
+      - echo Determining deployRoleArn & authArn for region $AWS_REGION
+      - |
+        if [ $AWS_REGION = "eu-central-1" ]
+        then
+          export deployRoleArn=$deployEURoleArn
+        elif [ $AWS_REGION = "ap-southeast-2" ]
+        then
+          export deployRoleArn=$deployAUSRoleArn
+        fi
+      - echo Set deployRoleArn to $deployRoleArn
+  build:
+    commands:
+      - echo go-live started on `date`
+      - cd deployment
+      - npm config set platform-api-x:region $AWS_REGION
+      - npm config set platform-api-x:cloud $cloudType
+      - npm config set platform-api-x:roleArn $deployRoleArn
+      - npm run go-live
+      - cd ..
+      - echo go-live completed on `date`
